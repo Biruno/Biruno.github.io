@@ -619,7 +619,7 @@ function showMenu(end) { ended = !!end; $('mTitle').textContent = end ? '🏆 Du
   $('btnPlay').textContent = end ? '↻ Replay' : (started ? '▶ Resume' : '▶ Play'); $('menu').classList.add('on'); setPaused(); }
 function start() { if (!ac && window.AudioContext) { try { ac = new AudioContext(); } catch (e) {} }
   if (!started || ended) { resetRooms(); squashed = 0; maxV = 0; deaths = hits = runT = 0; finale = null; peck = null; AO = []; T = []; FX = []; $('btnReplay').style.display = 'none'; newPlayer(); started = true; ended = false; enter(0); }
-  $('menu').classList.remove('on'); setPaused(); fit(); }
+  $('menu').classList.remove('on'); setPaused(); fit(); if (document.activeElement) document.activeElement.blur(); }
 function openCV() { $('cvp').classList.add('on'); setPaused(); }
 $('cvbody').innerHTML = `<h2>${C.name}</h2><p>${C.role}</p><p><a href="mailto:${C.email}">${C.email}</a> · ${C.phone}<br>${C.links.map(l => `<a href="${l.url}" target="_blank" rel="noopener">${l.label}</a>`).join(' · ')}</p>` +
   rooms.filter(r => r.cv !== false).map(r => `<section><h3>${r.section.toUpperCase()}</h3><h4>${r.title}${r.meta ? `<small>${r.meta}</small>` : ''}</h4><ul>${r.lines.map(l => typeof l == 'string' ? `<li>${l}</li>`
@@ -630,10 +630,19 @@ $('mIntro').innerHTML = C.menuIntro.map(l => l ? '<p>' + esc(l).split('*').map((
 $('btnReplay').onclick = () => { ended = true; start(); }; $('btnPlay').onclick = start; $('btnSkip').onclick = openCV; $('btnCV').onclick = openCV;
 $('btnClose').onclick = () => { $('cvp').classList.remove('on'); setPaused(); };
 $('btnMute').onclick = () => { mute = !mute; $('btnMute').textContent = mute ? '🔇' : '🔊'; }; $('btnMute').textContent = mute ? '🔇' : '🔊';
-addEventListener('keydown', e => { if (e.code.startsWith('Arrow') || e.code == 'Space') e.preventDefault(); keys[e.code] = true;
+// Keyboard. While a run is in progress (not on the menu / plain CV) browser shortcuts are blocked, and a Ctrl/Alt/Cmd combo
+// never moves the bird: those combos can swallow key-release events, which used to leave a direction "held" forever.
+const playing = () => started && !paused, MODS = /^(Control|Alt|Meta|OS)/, GAME_KEY = /^(Arrow|Key[WASD]$|Space$|Enter$)/;
+const clearKeys = () => { for (const k in keys) keys[k] = false; mouse.down = false; };
+addEventListener('keydown', e => {
+  if (playing() && (e.ctrlKey || e.altKey || e.metaKey)) { e.preventDefault(); clearKeys(); return; }
+  if (e.code.startsWith('Arrow') || e.code == 'Space' || (playing() && GAME_KEY.test(e.code))) e.preventDefault();   // no page scrolling, no "clicking" a focused button
+  keys[e.code] = true;
   if ((e.code == 'Enter' || e.code == 'Space') && $('menu').classList.contains('on') && !$('cvp').classList.contains('on')) start();
   if (e.code == 'Escape') { if ($('cvp').classList.contains('on')) $('btnClose').onclick(); else if (started) showMenu(false); } });
-addEventListener('keyup', e => keys[e.code] = false); addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+addEventListener('keyup', e => { keys[e.code] = false; if (MODS.test(e.code)) clearKeys(); if (playing() && GAME_KEY.test(e.code)) e.preventDefault(); });
+addEventListener('blur', clearKeys); document.addEventListener('visibilitychange', () => { if (document.hidden) clearKeys(); });
+addEventListener('contextmenu', e => { if (playing()) e.preventDefault(); });   // right-click menu would steal focus mid-run
 const mpos = e => { const b = cv.getBoundingClientRect(); mouse.x = (e.clientX - b.left) * W / b.width; mouse.y = (e.clientY - b.top) * H / b.height; };
 cv.addEventListener('mousedown', e => { const h = mapHit(e.clientX, e.clientY); if (h >= 0) { goRoom(h); return; } mouse.down = true; mpos(e); }); addEventListener('mouseup', () => mouse.down = false);
 cv.addEventListener('mousemove', e => { mpos(e); cv.style.cursor = mapHit(e.clientX, e.clientY) >= 0 ? 'pointer' : ''; });
